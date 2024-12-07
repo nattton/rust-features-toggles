@@ -1,0 +1,16 @@
+[package]
+name = "features-toggles"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.7.9" }
+tokio = { version = "1.42.0", features = ["full"] }
+tower = { version = "0.5.1", features = ["full"] }
+tower-http = { version = "0.6.2", features = ["full"] }
+tracing = "0.1.41"
+tracing-subscriber = "0.3.19"
+serde = { version = "1.0.215", features = ["derive"] }
+serde_json = "1.0.133"
+diesel = { version = "2.2.6", features = ["sqlite", "returning_clauses_for_sqlite_3_35"] }
+dotenvy = "0.15.7"
