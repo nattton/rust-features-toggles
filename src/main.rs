@@ -1,9 +1,14 @@
+use std::env;
+
 use self::models::*;
 use self::schema::features::dsl::*;
+use chrono::prelude::Utc;
 use diesel::prelude::*;
+use dotenvy::dotenv;
 use features_toggles::*;
 
 use axum::{
+    extract::rejection::JsonRejection,
     http::StatusCode,
     routing::{get, patch, post, put},
     Json, Router,
@@ -35,7 +40,10 @@ async fn main() {
         .layer(TraceLayer::new_for_http());
 
     // run our app with hyper, listening globally on port 3000
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    dotenv().ok();
+    let server_addr = env::var("SERVER_ADDR").unwrap_or("0.0.0.0:3000".to_string());
+    println!("Running server on http://{}", server_addr);
+    let listener = tokio::net::TcpListener::bind(server_addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
@@ -128,9 +136,8 @@ async fn put_features_toggles(
 async fn post_features_toggles(
     Json(payload): Json<PostFeaturesTogglesRequest>,
 ) -> (StatusCode, Json<PostFeaturesTogglesResponse>) {
-    for feature in payload.feature_category.iter() {
-        println!("{}", feature);
-    }
+    
+    println!("{:?}", payload.feature_category);
 
     let connection = &mut establish_connection();
     let results_categories: Vec<Feature> = features
@@ -247,27 +254,53 @@ async fn post_features_toggles(
 }
 
 async fn patch_features_toggles(
-    Json(payload): Json<PatchFeaturesTogglesRequest>,
+    payload: Result<Json<PatchFeaturesTogglesRequest>, JsonRejection>,
 ) -> (StatusCode, Json<PatchFeaturesTogglesResponse>) {
-    let connection = &mut establish_connection();
+    match payload {
+        Ok(payload) => {
+            println!("{:?}", payload.feature_list);
+            let connection = &mut establish_connection();
 
-    for feature in payload.feature_list.iter() {
-        let feature = diesel::update(features.filter(feature_id.eq(feature.feature_id.clone())))
-            .set(is_active.eq(feature.is_active))
-            .returning(Feature::as_returning())
-            .get_result(connection)
-            .unwrap();
-        println!("Feature {}: {} set active to {}", feature.feature_id, feature.name_th, feature.is_active)
+            for feature in payload.feature_list.iter() {
+                let feature =
+                    diesel::update(features.filter(feature_id.eq(feature.feature_id.clone())))
+                        .set((
+                            is_active.eq(feature.is_active),
+                            updated_date_time.eq(Utc::now().to_string()),
+                        ))
+                        .returning(Feature::as_returning())
+                        .get_result(connection)
+                        .unwrap();
+                println!(
+                    "Feature {}: {} set active to {}",
+                    feature.feature_id, feature.name_th, feature.is_active
+                )
+            }
+
+            let status: ApiResponse = ApiResponse {
+                code: String::from("0000"),
+                header: String::from(""),
+                description: String::from("Success"),
+            };
+            let response: PatchFeaturesTogglesResponse = PatchFeaturesTogglesResponse {
+                status,
+                data: String::from("null"),
+            };
+            (StatusCode::OK, Json(response))
+        }
+        Err(_) => {
+            let status: ApiResponse = ApiResponse {
+                code: String::from("8000"),
+                header: String::from("Bad request"),
+                description: String::from("The server could not understand the request due to invalid syntax or missing mandatory field"),
+            };
+            let response: PatchFeaturesTogglesResponse = PatchFeaturesTogglesResponse {
+                status,
+                data: String::from("null"),
+            };
+            (StatusCode::OK, Json(response))
+        }
     }
-
-    let status: ApiResponse = ApiResponse {
-        code: String::from("0000"),
-        header: String::from(""),
-        description: String::from("Success"),
-    };
-    let data = "null".to_string();
-    let response: PatchFeaturesTogglesResponse = PatchFeaturesTogglesResponse { status, data };
-    (StatusCode::OK, Json(response))
 }
 
 #[derive(Deserialize)]
@@ -355,7 +388,7 @@ struct PatchFeaturesTogglesRequest {
     feature_list: Vec<FeatureRequest>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct FeatureRequest {
     feature_id: String,
