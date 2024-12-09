@@ -53,11 +53,11 @@ async fn root() -> &'static str {
 }
 
 async fn put_features_toggles(
-    Json(payload): Json<PostFeaturesTogglesResponse>,
+    Json(payload): Json<FeaturesTogglesData>,
 ) -> (StatusCode, &'static str) {
     let conn = &mut establish_connection();
     let _ = diesel::delete(features).execute(conn);
-    for category in payload.data.product_category_list {
+    for category in payload.product_category_list {
         let new_uuid = Uuid::new_v4();
         let new_category = NewFeature {
             feature_id: new_uuid.hyphenated().to_string(),
@@ -76,7 +76,7 @@ async fn put_features_toggles(
         create_feature(conn, &new_category);
     }
 
-    for product in payload.data.product_list {
+    for product in payload.product_list {
         for sub_product in product.sub_product_list {
             let new_uuid = Uuid::new_v4();
             let new_category = NewFeature {
@@ -97,7 +97,7 @@ async fn put_features_toggles(
         }
     }
 
-    for service in payload.data.service_list {
+    for service in payload.service_list {
         let new_category = NewFeature {
             feature_id: service.feature_id,
             category_id: 0,
@@ -115,7 +115,7 @@ async fn put_features_toggles(
         create_feature(conn, &new_category);
     }
 
-    for system in payload.data.system_list {
+    for system in payload.system_list {
         let new_category = NewFeature {
             feature_id: system.feature_id,
             category_id: 0,
@@ -137,123 +137,135 @@ async fn put_features_toggles(
 }
 
 async fn post_features_toggles(
-    Json(payload): Json<PostFeaturesTogglesRequest>,
+    payload: Result<Json<PostFeaturesTogglesRequest>, JsonRejection>,
 ) -> (StatusCode, Json<PostFeaturesTogglesResponse>) {
     
-    println!("{:?}", payload.feature_category);
+    match payload {
+        Ok(payload) => {
+            println!("{:?}", payload.feature_category);
 
-    let connection = &mut establish_connection();
-    let results_categories: Vec<Feature> = features
-        .filter(feature_type.eq("category"))
-        .select(Feature::as_select())
-        .load(connection)
-        .expect("Error loading features");
-
-    let mut product_category_list: Vec<ProductCatgory> = vec![];
-    let mut product_list: Vec<Product> = vec![];
-
-    for category in results_categories {
-        let product_category: ProductCatgory = ProductCatgory {
-            feature_id: category.feature_id,
-            category_id: category.category_id,
-            name_th: category.name_th,
-            name_en: category.name_en,
-            is_active: category.is_active,
-            updated_date_time: category.updated_date_time,
-            updated_by_id: category.updated_by_id,
-            updated_by_name: category.updated_by_name,
-            category_sorting_order: category.sorting_order,
-        };
-        product_category_list.push(product_category);
-
-        let results_products: Vec<Feature> = features
-            .filter(feature_type.eq("product"))
-            .filter(category_id.eq(category.category_id))
-            .select(Feature::as_select())
-            .load(connection)
-            .expect("Error loading products");
-
-        let mut sub_product_list: Vec<SubProduct> = vec![];
-        for results_product in results_products {
-            let sub_product: SubProduct = SubProduct {
-                feature_id: results_product.feature_id,
-                name_th: results_product.name_th,
-                name_en: results_product.name_en,
-                is_active: results_product.is_active,
-                updated_date_time: results_product.updated_date_time,
-                updated_by_id: results_product.updated_by_id,
-                updated_by_name: results_product.updated_by_name,
-                sorting_order: results_product.sorting_order,
-                product_id: results_product.product_id,
-                code: results_product.code,
+            let connection = &mut establish_connection();
+            let results_categories: Vec<Feature> = features
+                .filter(feature_type.eq("category"))
+                .select(Feature::as_select())
+                .load(connection)
+                .expect("Error loading features");
+        
+            let mut product_category_list: Vec<ProductCatgory> = vec![];
+            let mut product_list: Vec<Product> = vec![];
+        
+            for category in results_categories {
+                let product_category: ProductCatgory = ProductCatgory {
+                    feature_id: category.feature_id,
+                    category_id: category.category_id,
+                    name_th: category.name_th,
+                    name_en: category.name_en,
+                    is_active: category.is_active,
+                    updated_date_time: category.updated_date_time,
+                    updated_by_id: category.updated_by_id,
+                    updated_by_name: category.updated_by_name,
+                    category_sorting_order: category.sorting_order,
+                };
+                product_category_list.push(product_category);
+        
+                let results_products: Vec<Feature> = features
+                    .filter(feature_type.eq("product"))
+                    .filter(category_id.eq(category.category_id))
+                    .select(Feature::as_select())
+                    .load(connection)
+                    .expect("Error loading products");
+        
+                let mut sub_product_list: Vec<SubProduct> = vec![];
+                for results_product in results_products {
+                    let sub_product: SubProduct = SubProduct {
+                        feature_id: results_product.feature_id,
+                        name_th: results_product.name_th,
+                        name_en: results_product.name_en,
+                        is_active: results_product.is_active,
+                        updated_date_time: results_product.updated_date_time,
+                        updated_by_id: results_product.updated_by_id,
+                        updated_by_name: results_product.updated_by_name,
+                        sorting_order: results_product.sorting_order,
+                        product_id: results_product.product_id,
+                        code: results_product.code,
+                    };
+                    sub_product_list.push(sub_product);
+                }
+                let product = Product {
+                    category_id: category.category_id,
+                    sub_product_list,
+                };
+                product_list.push(product);
+            }
+        
+            let results_services: Vec<Feature> = features
+                .filter(feature_type.eq("service"))
+                .select(Feature::as_select())
+                .load(connection)
+                .expect("Error loading services");
+        
+            let mut service_list: Vec<NonCategory> = vec![];
+            for post in results_services {
+                let service: NonCategory = NonCategory {
+                    feature_id: post.feature_id,
+                    name_th: post.name_th,
+                    name_en: post.name_en,
+                    is_active: post.is_active,
+                    updated_date_time: post.updated_date_time,
+                    updated_by_id: post.updated_by_id,
+                    updated_by_name: post.updated_by_name,
+                    sorting_order: post.sorting_order,
+                };
+                service_list.push(service);
+            }
+        
+            let results_systems: Vec<Feature> = features
+                .filter(feature_type.eq("system"))
+                .select(Feature::as_select())
+                .load(connection)
+                .expect("Error loading systems");
+        
+            let mut system_list: Vec<NonCategory> = vec![];
+            for post in results_systems {
+                let service: NonCategory = NonCategory {
+                    feature_id: post.feature_id,
+                    name_th: post.name_th,
+                    name_en: post.name_en,
+                    is_active: post.is_active,
+                    updated_date_time: post.updated_date_time,
+                    updated_by_id: post.updated_by_id,
+                    updated_by_name: post.updated_by_name,
+                    sorting_order: post.sorting_order,
+                };
+                system_list.push(service);
+            }
+        
+            let data = FeaturesTogglesData {
+                product_category_list,
+                product_list,
+                service_list,
+                system_list,
             };
-            sub_product_list.push(sub_product);
-        }
-        let product = Product {
-            category_id: category.category_id,
-            sub_product_list,
-        };
-        product_list.push(product);
+        
+            let status: ApiResponse = ApiResponse {
+                code: String::from("0000"),
+                header: String::from(""),
+                description: String::from("Success"),
+            };
+        
+            let response: PostFeaturesTogglesResponse = PostFeaturesTogglesResponse { status, data: Some(data) };
+        
+            (StatusCode::OK, Json(response))
+        },
+        Err(_) => {
+            let response: PostFeaturesTogglesResponse = PostFeaturesTogglesResponse {
+                status: get_response_bad_request(),
+                data: None,
+            };
+            (StatusCode::OK, Json(response))
+        },
     }
-
-    let results_services: Vec<Feature> = features
-        .filter(feature_type.eq("service"))
-        .select(Feature::as_select())
-        .load(connection)
-        .expect("Error loading services");
-
-    let mut service_list: Vec<NonCategory> = vec![];
-    for post in results_services {
-        let service: NonCategory = NonCategory {
-            feature_id: post.feature_id,
-            name_th: post.name_th,
-            name_en: post.name_en,
-            is_active: post.is_active,
-            updated_date_time: post.updated_date_time,
-            updated_by_id: post.updated_by_id,
-            updated_by_name: post.updated_by_name,
-            sorting_order: post.sorting_order,
-        };
-        service_list.push(service);
-    }
-
-    let results_systems: Vec<Feature> = features
-        .filter(feature_type.eq("system"))
-        .select(Feature::as_select())
-        .load(connection)
-        .expect("Error loading systems");
-
-    let mut system_list: Vec<NonCategory> = vec![];
-    for post in results_systems {
-        let service: NonCategory = NonCategory {
-            feature_id: post.feature_id,
-            name_th: post.name_th,
-            name_en: post.name_en,
-            is_active: post.is_active,
-            updated_date_time: post.updated_date_time,
-            updated_by_id: post.updated_by_id,
-            updated_by_name: post.updated_by_name,
-            sorting_order: post.sorting_order,
-        };
-        system_list.push(service);
-    }
-
-    let data = Data {
-        product_category_list,
-        product_list,
-        service_list,
-        system_list,
-    };
-
-    let status: ApiResponse = ApiResponse {
-        code: String::from("0000"),
-        header: String::from(""),
-        description: String::from("Success"),
-    };
-
-    let response: PostFeaturesTogglesResponse = PostFeaturesTogglesResponse { status, data };
-
-    (StatusCode::OK, Json(response))
+    
 }
 
 async fn patch_features_toggles(
@@ -272,12 +284,19 @@ async fn patch_features_toggles(
                             updated_date_time.eq(Utc::now().to_string()),
                         ))
                         .returning(Feature::as_returning())
-                        .get_result(connection)
-                        .unwrap();
-                println!(
-                    "Feature {}: {} set active to {}",
-                    feature.feature_id, feature.name_th, feature.is_active
-                )
+                        .get_result(connection);
+                match feature {
+                    Ok(feature) => println!(
+                        "Feature {}: {} set active to {}",
+                        feature.feature_id, feature.name_th, feature.is_active
+                    ),
+                    Err(_) => {
+                        let response: PatchFeaturesTogglesResponse = PatchFeaturesTogglesResponse {
+                            status:get_response_bad_request(),
+                        };
+                        return (StatusCode::OK, Json(response))
+                    },
+                }   
             }
 
             let status: ApiResponse = ApiResponse {
@@ -287,22 +306,23 @@ async fn patch_features_toggles(
             };
             let response: PatchFeaturesTogglesResponse = PatchFeaturesTogglesResponse {
                 status,
-                data: String::from("null"),
             };
             (StatusCode::OK, Json(response))
         }
         Err(_) => {
-            let status: ApiResponse = ApiResponse {
-                code: String::from("8000"),
-                header: String::from("Bad request"),
-                description: String::from("The server could not understand the request due to invalid syntax or missing mandatory field"),
-            };
             let response: PatchFeaturesTogglesResponse = PatchFeaturesTogglesResponse {
-                status,
-                data: String::from("null"),
+                status:get_response_bad_request(),
             };
             (StatusCode::OK, Json(response))
         }
+    }
+}
+
+fn get_response_bad_request() -> ApiResponse {
+    ApiResponse {
+        code: String::from("8000"),
+        header: String::from("Bad request"),
+        description: String::from("The server could not understand the request due to invalid syntax or missing mandatory field"),
     }
 }
 
@@ -316,7 +336,7 @@ struct PostFeaturesTogglesRequest {
 #[serde(rename_all = "camelCase")]
 struct PostFeaturesTogglesResponse {
     status: ApiResponse,
-    data: Data,
+    data: Option<FeaturesTogglesData>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -329,7 +349,7 @@ struct ApiResponse {
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Data {
+struct FeaturesTogglesData {
     product_category_list: Vec<ProductCatgory>,
     product_list: Vec<Product>,
     service_list: Vec<NonCategory>,
@@ -402,5 +422,4 @@ struct FeatureRequest {
 #[serde(rename_all = "camelCase")]
 struct PatchFeaturesTogglesResponse {
     status: ApiResponse,
-    data: String,
 }
