@@ -6,6 +6,7 @@ use chrono::prelude::Utc;
 use diesel::prelude::*;
 use dotenvy::dotenv;
 use features_toggles::*;
+use uuid::Uuid;
 
 use axum::{
     extract::rejection::JsonRejection,
@@ -57,8 +58,9 @@ async fn put_features_toggles(
     let conn = &mut establish_connection();
     let _ = diesel::delete(features).execute(conn);
     for category in payload.data.product_category_list {
+        let new_uuid = Uuid::new_v4();
         let new_category = NewFeature {
-            feature_id: category.feature_id,
+            feature_id: new_uuid.hyphenated().to_string(),
             category_id: category.category_id,
             product_id: "".to_string(),
             code: "".to_string(),
@@ -76,8 +78,9 @@ async fn put_features_toggles(
 
     for product in payload.data.product_list {
         for sub_product in product.sub_product_list {
+            let new_uuid = Uuid::new_v4();
             let new_category = NewFeature {
-                feature_id: sub_product.feature_id,
+                feature_id: new_uuid.hyphenated().to_string(),
                 category_id: product.category_id,
                 product_id: sub_product.product_id,
                 code: sub_product.code,
