@@ -139,133 +139,150 @@ async fn put_features_toggles(
 async fn post_features_toggles(
     payload: Result<Json<PostFeaturesTogglesRequest>, JsonRejection>,
 ) -> (StatusCode, Json<PostFeaturesTogglesResponse>) {
-    
     match payload {
         Ok(payload) => {
             println!("{:?}", payload.feature_category);
 
             let connection = &mut establish_connection();
-            let results_categories: Vec<Feature> = features
-                .filter(feature_type.eq("category"))
-                .select(Feature::as_select())
-                .load(connection)
-                .expect("Error loading features");
-        
+
             let mut product_category_list: Vec<ProductCatgory> = vec![];
             let mut product_list: Vec<Product> = vec![];
-        
-            for category in results_categories {
-                let product_category: ProductCatgory = ProductCatgory {
-                    feature_id: category.feature_id,
-                    category_id: category.category_id,
-                    name_th: category.name_th,
-                    name_en: category.name_en,
-                    is_active: category.is_active,
-                    updated_date_time: category.updated_date_time,
-                    updated_by_id: category.updated_by_id,
-                    updated_by_name: category.updated_by_name,
-                    category_sorting_order: category.sorting_order,
-                };
-                product_category_list.push(product_category);
-        
-                let results_products: Vec<Feature> = features
-                    .filter(feature_type.eq("product"))
-                    .filter(category_id.eq(category.category_id))
-                    .select(Feature::as_select())
-                    .load(connection)
-                    .expect("Error loading products");
-        
-                let mut sub_product_list: Vec<SubProduct> = vec![];
-                for results_product in results_products {
-                    let sub_product: SubProduct = SubProduct {
-                        feature_id: results_product.feature_id,
-                        name_th: results_product.name_th,
-                        name_en: results_product.name_en,
-                        is_active: results_product.is_active,
-                        updated_date_time: results_product.updated_date_time,
-                        updated_by_id: results_product.updated_by_id,
-                        updated_by_name: results_product.updated_by_name,
-                        sorting_order: results_product.sorting_order,
-                        product_id: results_product.product_id,
-                        code: results_product.code,
-                    };
-                    sub_product_list.push(sub_product);
-                }
-                let product = Product {
-                    category_id: category.category_id,
-                    sub_product_list,
-                };
-                product_list.push(product);
-            }
-        
-            let results_services: Vec<Feature> = features
-                .filter(feature_type.eq("service"))
-                .select(Feature::as_select())
-                .load(connection)
-                .expect("Error loading services");
-        
             let mut service_list: Vec<NonCategory> = vec![];
-            for post in results_services {
-                let service: NonCategory = NonCategory {
-                    feature_id: post.feature_id,
-                    name_th: post.name_th,
-                    name_en: post.name_en,
-                    is_active: post.is_active,
-                    updated_date_time: post.updated_date_time,
-                    updated_by_id: post.updated_by_id,
-                    updated_by_name: post.updated_by_name,
-                    sorting_order: post.sorting_order,
-                };
-                service_list.push(service);
-            }
-        
-            let results_systems: Vec<Feature> = features
-                .filter(feature_type.eq("system"))
-                .select(Feature::as_select())
-                .load(connection)
-                .expect("Error loading systems");
-        
             let mut system_list: Vec<NonCategory> = vec![];
-            for post in results_systems {
-                let service: NonCategory = NonCategory {
-                    feature_id: post.feature_id,
-                    name_th: post.name_th,
-                    name_en: post.name_en,
-                    is_active: post.is_active,
-                    updated_date_time: post.updated_date_time,
-                    updated_by_id: post.updated_by_id,
-                    updated_by_name: post.updated_by_name,
-                    sorting_order: post.sorting_order,
-                };
-                system_list.push(service);
+
+            for feature_category in payload.feature_category.iter() {
+                match feature_category.as_ref() {
+                    "PRODUCT" => {
+                        let results_categories: Vec<Feature> = features
+                            .filter(feature_type.eq("category"))
+                            .select(Feature::as_select())
+                            .load(connection)
+                            .expect("Error loading features");
+
+                        for category in results_categories {
+                            let product_category: ProductCatgory = ProductCatgory {
+                                feature_id: category.feature_id,
+                                category_id: category.category_id,
+                                name_th: category.name_th,
+                                name_en: category.name_en,
+                                is_active: category.is_active,
+                                updated_date_time: category.updated_date_time,
+                                updated_by_id: category.updated_by_id,
+                                updated_by_name: category.updated_by_name,
+                                category_sorting_order: category.sorting_order,
+                            };
+                            product_category_list.push(product_category);
+
+                            let results_products: Vec<Feature> = features
+                                .filter(feature_type.eq("product"))
+                                .filter(category_id.eq(category.category_id))
+                                .select(Feature::as_select())
+                                .load(connection)
+                                .expect("Error loading products");
+
+                            let mut sub_product_list: Vec<SubProduct> = vec![];
+                            for results_product in results_products {
+                                let sub_product: SubProduct = SubProduct {
+                                    feature_id: results_product.feature_id,
+                                    name_th: results_product.name_th,
+                                    name_en: results_product.name_en,
+                                    is_active: results_product.is_active,
+                                    updated_date_time: results_product.updated_date_time,
+                                    updated_by_id: results_product.updated_by_id,
+                                    updated_by_name: results_product.updated_by_name,
+                                    sorting_order: results_product.sorting_order,
+                                    product_id: results_product.product_id,
+                                    code: results_product.code,
+                                };
+                                sub_product_list.push(sub_product);
+                            }
+                            let product = Product {
+                                category_id: category.category_id,
+                                sub_product_list,
+                            };
+                            product_list.push(product);
+                        }
+                    }
+                    "SERVICE" => {
+                        let results_services: Vec<Feature> = features
+                            .filter(feature_type.eq("service"))
+                            .select(Feature::as_select())
+                            .load(connection)
+                            .expect("Error loading services");
+
+                        for post in results_services {
+                            let service: NonCategory = NonCategory {
+                                feature_id: post.feature_id,
+                                name_th: post.name_th,
+                                name_en: post.name_en,
+                                is_active: post.is_active,
+                                updated_date_time: post.updated_date_time,
+                                updated_by_id: post.updated_by_id,
+                                updated_by_name: post.updated_by_name,
+                                sorting_order: post.sorting_order,
+                            };
+                            service_list.push(service);
+                        }
+                    }
+                    "SYSTEM" => {
+                        let results_systems: Vec<Feature> = features
+                            .filter(feature_type.eq("system"))
+                            .select(Feature::as_select())
+                            .load(connection)
+                            .expect("Error loading systems");
+
+                        for post in results_systems {
+                            let service: NonCategory = NonCategory {
+                                feature_id: post.feature_id,
+                                name_th: post.name_th,
+                                name_en: post.name_en,
+                                is_active: post.is_active,
+                                updated_date_time: post.updated_date_time,
+                                updated_by_id: post.updated_by_id,
+                                updated_by_name: post.updated_by_name,
+                                sorting_order: post.sorting_order,
+                            };
+                            system_list.push(service);
+                        }
+                    }
+                    _ => {
+                        let response: PostFeaturesTogglesResponse = PostFeaturesTogglesResponse {
+                            status: get_response_bad_request(),
+                            data: None,
+                        };
+                        return (StatusCode::OK, Json(response))
+                    }
+                }
             }
-        
+
             let data = FeaturesTogglesData {
                 product_category_list,
                 product_list,
                 service_list,
                 system_list,
             };
-        
+
             let status: ApiResponse = ApiResponse {
                 code: String::from("0000"),
                 header: String::from(""),
                 description: String::from("Success"),
             };
-        
-            let response: PostFeaturesTogglesResponse = PostFeaturesTogglesResponse { status, data: Some(data) };
-        
+
+            let response: PostFeaturesTogglesResponse = PostFeaturesTogglesResponse {
+                status,
+                data: Some(data),
+            };
+
             (StatusCode::OK, Json(response))
-        },
+        }
         Err(_) => {
             let response: PostFeaturesTogglesResponse = PostFeaturesTogglesResponse {
                 status: get_response_bad_request(),
                 data: None,
             };
             (StatusCode::OK, Json(response))
-        },
+        }
     }
-    
 }
 
 async fn patch_features_toggles(
@@ -292,11 +309,11 @@ async fn patch_features_toggles(
                     ),
                     Err(_) => {
                         let response: PatchFeaturesTogglesResponse = PatchFeaturesTogglesResponse {
-                            status:get_response_bad_request(),
+                            status: get_response_bad_request(),
                         };
-                        return (StatusCode::OK, Json(response))
-                    },
-                }   
+                        return (StatusCode::OK, Json(response));
+                    }
+                }
             }
 
             let status: ApiResponse = ApiResponse {
@@ -304,14 +321,12 @@ async fn patch_features_toggles(
                 header: String::from(""),
                 description: String::from("Success"),
             };
-            let response: PatchFeaturesTogglesResponse = PatchFeaturesTogglesResponse {
-                status,
-            };
+            let response: PatchFeaturesTogglesResponse = PatchFeaturesTogglesResponse { status };
             (StatusCode::OK, Json(response))
         }
         Err(_) => {
             let response: PatchFeaturesTogglesResponse = PatchFeaturesTogglesResponse {
-                status:get_response_bad_request(),
+                status: get_response_bad_request(),
             };
             (StatusCode::OK, Json(response))
         }
